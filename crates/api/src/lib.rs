@@ -480,8 +480,14 @@ async fn load_model(
         )
         .await
     {
-        Ok(handle) => Json(handle).into_response(),
-        Err(error) => (axum::http::StatusCode::BAD_REQUEST, error.to_string()).into_response(),
+        Ok(handle) => (axum::http::StatusCode::OK, Json(handle)).into_response(),
+        Err(error) => {
+            let diagnostic = deeplocal_runtime::diagnose_model_load_error(&error.to_string());
+            (
+                axum::http::StatusCode::BAD_REQUEST,
+                Json(diagnostic),
+            ).into_response()
+        }
     }
 }
 
