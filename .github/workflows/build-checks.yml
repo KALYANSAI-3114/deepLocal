@@ -34,6 +34,9 @@ jobs:
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
 
+      - name: Prepare bundled llama runtime directory
+        run: mkdir -p apps/desktop/src-tauri/resources/llama-runtime
+
       - name: Run cargo check
         run: cargo check
 
