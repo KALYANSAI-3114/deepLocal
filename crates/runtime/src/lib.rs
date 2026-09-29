@@ -1,3 +1,6 @@
+pub mod diagnostics;
+pub use diagnostics::*;
+
 use async_trait::async_trait;
 use deeplocal_core::{
     BackendStatus, ChatRole, GeneratedToken, GenerationRequest, InferenceBackend, LoadOptions,

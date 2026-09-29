@@ -73,6 +73,29 @@ type ModelDescriptor = {
   files?: Array<{ filename: string; path?: string | null; size_bytes?: number | null; sha256?: string | null }>;
 };
 
+type ModelLoadDiagnostic = {
+  category: string;
+  title: string;
+  explanation: string;
+  recovery_step: string;
+  technical_details: string;
+};
+
+async function modelLoadErrorMessage(response: Response): Promise<string> {
+  const body = await response.text();
+  try {
+    const diagnostic = JSON.parse(body) as Partial<ModelLoadDiagnostic>;
+    if (typeof diagnostic.title === "string" && typeof diagnostic.explanation === "string") {
+      const recovery = typeof diagnostic.recovery_step === "string" ? `\nNext step: ${diagnostic.recovery_step}` : "";
+      const details = typeof diagnostic.technical_details === "string" ? `\nTechnical details: ${diagnostic.technical_details}` : "";
+      return `${diagnostic.title}: ${diagnostic.explanation}${recovery}${details}`;
+    }
+  } catch {
+    // Keep displaying plain text errors from older API versions.
+  }
+  return body;
+}
+
 type LoadedModel = {
   id: string;
   backend: string;
@@ -1286,7 +1309,7 @@ function Chat({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ model_id: modelId, backend: "llama.cpp", ...options }),
       });
-      if (!res.ok) throw new Error(await res.text());
+      if (!res.ok) throw new Error(await modelLoadErrorMessage(res));
       await onRefresh();
     } finally {
       setLoadingModelId(null);
@@ -2161,7 +2184,7 @@ function Models({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ model_id: modelId, backend: "llama.cpp", ...options }),
     });
-    onNotice(res.ok ? `Loaded ${modelId}.` : await res.text());
+    onNotice(res.ok ? `Loaded ${modelId}.` : await modelLoadErrorMessage(res));
     await onRefresh();
   }
 

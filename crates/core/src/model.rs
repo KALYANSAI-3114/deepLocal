@@ -102,3 +102,23 @@ pub enum DownloadState {
     Downloaded,
     Error,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelLoadFailureKind {
+    FileNotFoundOrUnreadable,
+    RuntimeIncompatibleOrMissing,
+    UnsupportedArchitecture,
+    InsufficientMemory,
+    GpuBackendUnavailable,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModelLoadDiagnostic {
+    pub category: ModelLoadFailureKind,
+    pub title: String,
+    pub explanation: String,
+    pub recovery_step: String,
+    pub technical_details: String,
+}

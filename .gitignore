@@ -32,3 +32,5 @@
 .DS_Store
 *.key
 *.key.pub
+
+.betty_cache.json
