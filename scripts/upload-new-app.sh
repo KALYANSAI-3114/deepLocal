@@ -154,6 +154,7 @@ Highlights:
 Notes:
 
 - This preview build is unsigned and not notarized, so macOS Gatekeeper may warn on first launch.
+- If macOS blocks the app, download only from the official deepLocal GitHub Releases page, move deepLocal.app to /Applications, then run: xattr -dr com.apple.quarantine /Applications/deepLocal.app. Only do this if you trust the downloaded build.
 - Recommended download: deepLocal-macos.dmg
 - ZIP version: deepLocal-macos.zip
 

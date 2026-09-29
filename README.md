@@ -34,6 +34,23 @@ The installer downloads the latest GitHub Release, installs `deepLocal.app` to
 the app. macOS may ask for administrator permission when replacing or copying
 the app into `/Applications`.
 
+### If macOS blocks the downloaded app
+
+Current public macOS builds may not be notarized. Only use this workaround if
+you downloaded deepLocal from the official
+[deepLocal GitHub Releases](https://github.com/petertzy/deepLocal/releases) page
+and trust that build. Move `deepLocal.app` to `/Applications`, then remove its
+quarantine attribute in Terminal:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/deepLocal.app"
+```
+
+This removes Gatekeeper's download quarantine marker from this app bundle. It
+does not notarize or code-sign the app. If you are unsure whether the download
+is authentic, do not run this command; verify the release and its published
+SHA-256 checksum first.
+
 From the project root on macOS or Linux:
 
 ```bash
