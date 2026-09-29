@@ -252,6 +252,33 @@ describe("core frontend flows", () => {
     expect(screen.queryByRole("heading", { name: "Large model may not fit" })).not.toBeInTheDocument();
   });
 
+  it("shows actionable model load diagnostics instead of raw JSON", async () => {
+    const state = apiState({ models: [{ ...model, size_bytes: 1_000_000_000 }] }) as Record<string, unknown>;
+    const fetchMock = installFetch(state);
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const path = new URL(String(input), "http://127.0.0.1:14567").pathname;
+      if (path === "/runtime/models/load") {
+        return jsonResponse({
+          category: "insufficient_memory",
+          title: "Insufficient Memory",
+          explanation: "Available memory appears insufficient.",
+          recovery_step: "Reduce context length.",
+          technical_details: "failed to allocate context buffer",
+        }, false);
+      }
+      return jsonResponse(state[path] ?? []);
+    });
+    render(<App />);
+    await navigate("Models");
+
+    const card = screen.getByRole("heading", { name: model.name }).closest("article")!;
+    await userEvent.click(within(card).getByRole("button", { name: /^Load$/ }));
+    expect(await screen.findByText(/Insufficient Memory: Available memory appears insufficient\./)).toBeInTheDocument();
+    expect(screen.getByText(/Next step: Reduce context length\./)).toBeInTheDocument();
+    expect(screen.getByText(/Technical details: failed to allocate context buffer/)).toBeInTheDocument();
+    expect(screen.queryByText(/"category":/)).not.toBeInTheDocument();
+  });
+
   it("shows the loaded-model chat state", async () => {
     installFetch(apiState({ models: [model], loaded: [{ id: model.id, backend: "mock", status: "loaded" }] }));
     render(<App />);

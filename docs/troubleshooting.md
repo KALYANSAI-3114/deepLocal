@@ -1,6 +1,6 @@
 # Troubleshooting Model Load Failures
 
-This guide outlines common errors encountered when loading local models in deepLocal, their root causes, and safe recovery steps.
+This guide outlines common errors encountered when loading local models in deepLocal and safe recovery steps. Categories describe likely causes only when runtime diagnostics provide a recognizable signal. Unknown errors remain unclassified; copy their technical details when reporting an issue. A file-format or integrity error alone does not establish that a model architecture is unsupported.
 
 | Category | Diagnostic Explanation | Recovery Guidance |
 | :--- | :--- | :--- |

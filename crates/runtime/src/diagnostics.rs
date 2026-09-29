@@ -59,8 +59,6 @@ pub fn diagnose_model_load_error(raw_error: &str) -> ModelLoadDiagnostic {
     // 4. Unsupported model architecture
     if lower.contains("unsupported architecture")
         || lower.contains("unknown model architecture")
-        || lower.contains("magic number mismatch")
-        || lower.contains("invalid gguf version")
         || lower.contains("unsupported tensor type")
     {
         return ModelLoadDiagnostic {
@@ -93,7 +91,8 @@ pub fn diagnose_model_load_error(raw_error: &str) -> ModelLoadDiagnostic {
         category: ModelLoadFailureKind::Unknown,
         title: "Model Load Failure".to_string(),
         explanation: "The model failed to load due to an undetermined error.".to_string(),
-        recovery_step: "Review the technical details below and consult the troubleshooting guide.".to_string(),
+        recovery_step: "Review the technical details below and consult the troubleshooting guide."
+            .to_string(),
         technical_details: raw_error.to_string(),
     }
 }
@@ -106,7 +105,10 @@ mod tests {
     fn test_diagnose_file_not_found() {
         let err = "Failed to open file: /models/test.gguf: No such file or directory";
         let diag = diagnose_model_load_error(err);
-        assert_eq!(diag.category, ModelLoadFailureKind::FileNotFoundOrUnreadable);
+        assert_eq!(
+            diag.category,
+            ModelLoadFailureKind::FileNotFoundOrUnreadable
+        );
         assert_eq!(diag.technical_details, err);
     }
 
@@ -126,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_diagnose_unsupported_arch() {
-        let err = "GGUF error: magic number mismatch, invalid gguf version";
+        let err = "unsupported architecture: llama-moe-v99";
         let diag = diagnose_model_load_error(err);
         assert_eq!(diag.category, ModelLoadFailureKind::UnsupportedArchitecture);
     }
@@ -135,7 +137,10 @@ mod tests {
     fn test_diagnose_runtime_missing() {
         let err = "backend not registered: llama.cpp";
         let diag = diagnose_model_load_error(err);
-        assert_eq!(diag.category, ModelLoadFailureKind::RuntimeIncompatibleOrMissing);
+        assert_eq!(
+            diag.category,
+            ModelLoadFailureKind::RuntimeIncompatibleOrMissing
+        );
     }
 
     #[test]
@@ -144,5 +149,33 @@ mod tests {
         let diag = diagnose_model_load_error(err);
         assert_eq!(diag.category, ModelLoadFailureKind::Unknown);
         assert_eq!(diag.technical_details, err);
+    }
+
+    #[test]
+    fn malformed_or_corrupt_model_errors_are_not_claimed_as_architecture_errors() {
+        for err in [
+            "magic number mismatch",
+            "invalid gguf version",
+            "checksum mismatch",
+        ] {
+            let diag = diagnose_model_load_error(err);
+            assert_eq!(diag.category, ModelLoadFailureKind::Unknown, "{err}");
+            assert_eq!(diag.technical_details, err);
+        }
+    }
+
+    #[test]
+    fn each_recognized_category_has_actionable_guidance() {
+        for err in [
+            "file not found",
+            "out of memory",
+            "CUDA driver unavailable",
+            "unsupported architecture",
+            "incompatible runtime",
+        ] {
+            let diag = diagnose_model_load_error(err);
+            assert!(!diag.recovery_step.trim().is_empty(), "{err}");
+            assert!(!diag.explanation.trim().is_empty(), "{err}");
+        }
     }
 }

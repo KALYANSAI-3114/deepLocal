@@ -483,10 +483,7 @@ async fn load_model(
         Ok(handle) => (axum::http::StatusCode::OK, Json(handle)).into_response(),
         Err(error) => {
             let diagnostic = deeplocal_runtime::diagnose_model_load_error(&error.to_string());
-            (
-                axum::http::StatusCode::BAD_REQUEST,
-                Json(diagnostic),
-            ).into_response()
+            (axum::http::StatusCode::BAD_REQUEST, Json(diagnostic)).into_response()
         }
     }
 }
@@ -1211,6 +1208,41 @@ mod tests {
             .await
             .expect("register duplicate model");
         assert_eq!(response.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn model_load_failure_returns_structured_neutral_diagnostic() {
+        let app = super::router_with_cors(RuntimeManager::default(), false);
+        let model = test_model("api-load-failure-model");
+        let response = app
+            .clone()
+            .oneshot(json_request("/runtime/models", model))
+            .await
+            .expect("register model");
+        assert_eq!(response.status(), StatusCode::CREATED);
+
+        let response = app
+            .oneshot(json_request(
+                "/runtime/models/load",
+                serde_json::json!({ "model_id": "api-load-failure-model", "backend": "missing-backend" }),
+            ))
+            .await
+            .expect("load model with missing backend");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = response_json(response).await;
+        assert_eq!(body["category"], "runtime_incompatible_or_missing");
+        assert!(
+            body["recovery_step"]
+                .as_str()
+                .unwrap()
+                .contains("another installed runtime")
+        );
+        assert!(
+            body["technical_details"]
+                .as_str()
+                .unwrap()
+                .contains("backend not registered")
+        );
     }
 
     #[tokio::test]
