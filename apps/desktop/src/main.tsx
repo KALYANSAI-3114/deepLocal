@@ -9,6 +9,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneLight } from "react-syntax-highlighter/dist/esm/styles/prism/index.js";
 import remarkGfm from "remark-gfm";
+import { DefaultHighestPriorityPrompt, type HighestPriorityPrompt } from "./prompts";
 import {
   Activity,
   ArrowLeft,
@@ -275,9 +276,6 @@ const CHAT_TOP_P = 0.9;
 const CHAT_REPEAT_PENALTY = 1.1;
 const CHAT_REPEAT_LAST_N = 256;
 const CHAT_MIN_P = 0.05;
-const CHAT_SYSTEM_PROMPT =
-  "You are a helpful local assistant. Answer in the user's language. Be accurate and concise. " +
-  "When asked for code, produce complete valid code, avoid repeating tokens or unfinished fragments, and do not claim that code is complete when it is not.";
 const PROMPT_SUGGESTION_SYSTEM_PROMPT =
   "You suggest one useful, interesting question for a local AI chat. Return only one question. No bullets, no quotes, no explanations. Keep it under 180 characters.";
 
@@ -1138,7 +1136,11 @@ function Chat({
       const nextMessages: ChatMessage[] = [...conversation.messages, userMessage];
       const modelId = conversation.model_id ?? conversationModel;
       const loadOptions = loadOptionsForModel(modelId);
-      const requestMessages = buildChatCompletionMessages(nextMessages, loadOptions, selectedPromptPreset?.system_prompt);
+      const requestMessages = buildChatCompletionMessages(
+        nextMessages,
+        loadOptions,
+        new DefaultHighestPriorityPrompt(selectedPromptPreset?.system_prompt),
+      );
       const generationOptions = chatGenerationOptions(requestMessages, loadOptions);
       updateConversationMessages(conversation.id, nextMessages, modelId);
 
@@ -3763,10 +3765,14 @@ function estimateMessageTokens(message: OpenAiRequestMessage) {
   return Math.ceil(cjkCount * 1.5 + otherCount * 0.5) + 24;
 }
 
-function buildChatCompletionMessages(messages: ChatMessage[], options: ModelLoadOptions, presetSystemPrompt?: string | null): OpenAiRequestMessage[] {
+function buildChatCompletionMessages(
+  messages: ChatMessage[],
+  options: ModelLoadOptions,
+  highestPriorityPrompt: HighestPriorityPrompt = new DefaultHighestPriorityPrompt(),
+): OpenAiRequestMessage[] {
   const systemMessage: OpenAiRequestMessage = {
     role: "system",
-    content: [CHAT_SYSTEM_PROMPT, presetSystemPrompt?.trim()].filter(Boolean).join("\n\n"),
+    content: highestPriorityPrompt.content(),
   };
   const systemTokens = estimateMessageTokens(systemMessage);
   // Reserve response output space: at least 256 tokens, up to CHAT_RESPONSE_MAX_TOKENS, but capped at 30% of context
