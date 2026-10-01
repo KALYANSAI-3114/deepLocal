@@ -349,6 +349,22 @@ curl http://127.0.0.1:14567/v1/chat/completions \
   }'
 ```
 
+For incremental output, set `stream` to `true` and keep curl running with
+`-N`. Each `data:` event is an OpenAI-compatible completion chunk; a successful
+request ends with a finish chunk followed by `data: [DONE]`. Errors that happen
+after streaming starts are sent as an SSE `data:` error event, while errors
+before the stream starts use the normal HTTP error response.
+
+```bash
+curl -N http://127.0.0.1:14567/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -d '{
+    "model": "your-loaded-model-id",
+    "stream": true,
+    "messages": [{ "role": "user", "content": "Explain deepLocal in one sentence." }]
+  }'
+```
+
 Load a model in the UI first, then use its model ID in API calls. Find and copy
 the exact ID on the **Server** page; model IDs are not necessarily the model's
 display name.

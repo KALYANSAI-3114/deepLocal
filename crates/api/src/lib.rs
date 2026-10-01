@@ -1,7 +1,7 @@
 use axum::{
     Json, Router,
     extract::{Query, State},
-    http::HeaderMap,
+    http::{HeaderMap, StatusCode},
     response::{
         IntoResponse,
         sse::{Event, Sse},
@@ -1471,6 +1471,120 @@ mod tests {
                 .expect("completion content")
                 .contains("hello API")
         );
+    }
+
+    #[tokio::test]
+    async fn openai_chat_endpoint_streams_openai_compatible_sse_chunks() {
+        let runtime = RuntimeManager::default();
+        runtime.register_backend(Arc::new(MockBackend)).await;
+        let app = super::router_with_cors(runtime, false);
+        let model = test_model("api-stream-model");
+        let response = app
+            .clone()
+            .oneshot(json_request("/runtime/models", model))
+            .await
+            .expect("register stream model");
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let response = app
+            .clone()
+            .oneshot(json_request(
+                "/runtime/models/load",
+                serde_json::json!({ "model_id": "api-stream-model", "backend": "mock" }),
+            ))
+            .await
+            .expect("load stream model");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let response = app
+            .oneshot(json_request(
+                "/v1/chat/completions",
+                serde_json::json!({
+                    "model": "api-stream-model",
+                    "stream": true,
+                    "messages": [{ "role": "user", "content": "hello stream" }]
+                }),
+            ))
+            .await
+            .expect("stream chat request");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["content-type"], "text/event-stream");
+        let body = response
+            .into_body()
+            .collect()
+            .await
+            .expect("collect SSE")
+            .to_bytes();
+        let body = String::from_utf8(body.to_vec()).expect("SSE is UTF-8");
+        assert!(body.contains("data: [DONE]"));
+        let chunks: Vec<_> = body
+            .split("\n\n")
+            .filter_map(|event| event.strip_prefix("data: "))
+            .filter_map(|data| serde_json::from_str::<serde_json::Value>(data).ok())
+            .collect();
+        assert!(chunks.len() >= 2);
+        assert!(chunks.windows(2).all(|pair| pair[0]["id"] == pair[1]["id"]));
+        assert_eq!(
+            chunks.last().unwrap()["choices"][0]["finish_reason"],
+            "stop"
+        );
+    }
+
+    #[tokio::test]
+    async fn openai_chat_stream_returns_http_error_before_headers_on_generation_failure() {
+        let app = super::router_with_cors(RuntimeManager::default(), false);
+        let response = app
+            .oneshot(json_request(
+                "/v1/chat/completions",
+                serde_json::json!({
+                    "model": "not-loaded",
+                    "stream": true,
+                    "messages": [{ "role": "user", "content": "hello" }]
+                }),
+            ))
+            .await
+            .expect("failed stream request");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(
+            !response.headers().contains_key("content-type")
+                || response.headers()["content-type"] != "text/event-stream"
+        );
+    }
+
+    #[tokio::test]
+    async fn openai_chat_stream_can_be_cancelled_by_dropping_response_body() {
+        let runtime = RuntimeManager::default();
+        runtime.register_backend(Arc::new(MockBackend)).await;
+        let app = super::router_with_cors(runtime, false);
+        let response = app
+            .clone()
+            .oneshot(json_request(
+                "/runtime/models",
+                test_model("api-cancel-model"),
+            ))
+            .await
+            .expect("register cancel model");
+        assert_eq!(response.status(), StatusCode::CREATED);
+        let response = app
+            .clone()
+            .oneshot(json_request(
+                "/runtime/models/load",
+                serde_json::json!({ "model_id": "api-cancel-model", "backend": "mock" }),
+            ))
+            .await
+            .expect("load cancel model");
+        assert_eq!(response.status(), StatusCode::OK);
+        let response = app
+            .oneshot(json_request(
+                "/v1/chat/completions",
+                serde_json::json!({
+                    "model": "api-cancel-model",
+                    "stream": true,
+                    "messages": [{ "role": "user", "content": "cancel me" }]
+                }),
+            ))
+            .await
+            .expect("cancel stream request");
+        drop(response.into_body());
     }
 
     #[test]
@@ -3399,28 +3513,39 @@ async fn chat_completions(
         let stream = match state.runtime.generate(request).await {
             Ok(stream) => stream,
             Err(error) => {
-                let once = tokio_stream::once(Ok::<_, Infallible>(
-                    Event::default()
-                        .data(serde_json::json!({ "error": error.to_string() }).to_string()),
-                ));
-                return Sse::new(once)
-                    .keep_alive(
-                        axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)),
-                    )
-                    .into_response();
+                return (StatusCode::BAD_REQUEST, error.to_string()).into_response();
             }
         };
-        let sse = stream.map(move |token| match token {
+        let completion_id = format!("chatcmpl-{}", Uuid::new_v4());
+        let created = Utc::now().timestamp();
+        let model = body.model.clone();
+        let sse = stream.flat_map(move |token| match token {
             Ok(token) => {
                 if token.done {
-                    Ok::<_, Infallible>(Event::default().data("[DONE]"))
-                } else {
-                    Ok(Event::default().data(
+                    futures::stream::iter(vec![
+                        Ok::<_, Infallible>(Event::default().data(
                         serde_json::json!({
-                            "id": format!("chatcmpl-{}", Uuid::new_v4()),
+                            "id": completion_id,
                             "object": "chat.completion.chunk",
-                            "created": Utc::now().timestamp(),
-                            "model": body.model,
+                            "created": created,
+                            "model": model,
+                            "choices": [{
+                                "index": 0,
+                                "delta": {},
+                                "finish_reason": "stop"
+                            }]
+                        })
+                        .to_string(),
+                        )),
+                        Ok(Event::default().data("[DONE]")),
+                    ])
+                } else {
+                    futures::stream::iter(vec![Ok(Event::default().data(
+                        serde_json::json!({
+                            "id": completion_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": model,
                             "choices": [{
                                 "index": 0,
                                 "delta": { "content": token.text },
@@ -3428,15 +3553,13 @@ async fn chat_completions(
                             }]
                         })
                         .to_string(),
-                    ))
+                    ))])
                 }
             }
-            Err(error) => Ok(Event::default().data(
-                serde_json::json!({
-                    "error": error.to_string()
-                })
-                .to_string(),
-            )),
+            Err(error) => futures::stream::iter(vec![Ok(Event::default().data(
+                serde_json::json!({ "error": { "message": error.to_string(), "type": "server_error" } })
+                    .to_string(),
+            ))]),
         });
         return Sse::new(sse)
             .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)))
