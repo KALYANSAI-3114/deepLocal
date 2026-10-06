@@ -23,6 +23,8 @@ model files to a remote service.
 
 ## Quick Start
 
+### Install the packaged app
+
 Install the latest macOS app:
 
 ```bash
@@ -50,6 +52,8 @@ This removes Gatekeeper's download quarantine marker from this app bundle. It
 does not notarize or code-sign the app. If you are unsure whether the download
 is authentic, do not run this command; verify the release and its published
 SHA-256 checksum first.
+
+### Run from source
 
 From the project root on macOS or Linux:
 
@@ -101,50 +105,7 @@ http://127.0.0.1:5173/
 The script starts both the backend and frontend and installs missing local
 development dependencies on its first run.
 
-Useful commands:
-
-```bash
-./scripts/start-dev.sh --restart
-./scripts/start-dev.sh --stop
-./scripts/start-dev.sh --build
-./scripts/install-macos.sh
-./scripts/package-macos-app.sh
-./scripts/upload-new-app.sh
-./scripts/uninstall-local.sh
-DEEPLOCAL_SKIP_LLAMA_INSTALL=1 ./scripts/start-dev.sh
-```
-
-`upload-new-app.sh` automatically increments the patch version from the latest
-GitHub release or local Git tag. To explicitly choose a version, set
-`DEEPLOCAL_RELEASE_VERSION`, for example:
-
-```bash
-DEEPLOCAL_RELEASE_VERSION=v0.1.3 ./scripts/upload-new-app.sh
-```
-
-To preview the automatically selected version without building or uploading:
-
-```bash
-DEEPLOCAL_UPLOAD_DRY_RUN=1 ./scripts/upload-new-app.sh
-```
-
-Windows commands:
-
-```powershell
-.\scripts\start-dev.cmd -Restart
-.\scripts\start-dev.cmd -Stop
-.\scripts\start-dev.cmd -Build
-```
-
-You can also run the PowerShell script directly when local script execution is
-enabled:
-
-```powershell
-.\scripts\start-dev.ps1
-```
-
-Use `./scripts/uninstall-local.sh --remove-llama` to also remove Homebrew
-`llama.cpp` after cleaning local project artifacts.
+For the full list of helper scripts grouped by purpose, see [Scripts](#scripts).
 
 ## Document Chat
 
@@ -488,6 +449,64 @@ crates/
 config/         Example runtime configuration
 scripts/        Development helper scripts
 ```
+
+## Scripts
+
+Helper scripts grouped by purpose. See [Project Layout](#project-layout) for where
+they live.
+
+### Developing
+
+```bash
+./scripts/start-dev.sh --restart
+./scripts/start-dev.sh --stop
+./scripts/start-dev.sh --build
+DEEPLOCAL_SKIP_LLAMA_INSTALL=1 ./scripts/start-dev.sh
+```
+
+```powershell
+.\scripts\start-dev.cmd -Restart
+.\scripts\start-dev.cmd -Stop
+.\scripts\start-dev.cmd -Build
+```
+
+You can also run the PowerShell script directly when local script execution is
+enabled:
+
+```powershell
+.\scripts\start-dev.ps1
+```
+
+### Packaging and releases
+
+```bash
+./scripts/package-macos-app.sh
+./scripts/upload-new-app.sh
+```
+
+`upload-new-app.sh` automatically increments the patch version from the latest
+GitHub release or local Git tag. To explicitly choose a version, set
+`DEEPLOCAL_RELEASE_VERSION`, for example:
+
+```bash
+DEEPLOCAL_RELEASE_VERSION=v0.1.3 ./scripts/upload-new-app.sh
+```
+
+To preview the automatically selected version without building or uploading:
+
+```bash
+DEEPLOCAL_UPLOAD_DRY_RUN=1 ./scripts/upload-new-app.sh
+```
+
+### Installing and cleaning up
+
+```bash
+./scripts/install-macos.sh
+./scripts/uninstall-local.sh
+```
+
+Use `./scripts/uninstall-local.sh --remove-llama` to also remove Homebrew
+`llama.cpp` after cleaning local project artifacts.
 
 ## Contributing
 
