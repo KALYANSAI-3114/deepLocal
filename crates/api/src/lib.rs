@@ -461,8 +461,9 @@ pub struct LoadModelRequest {
 }
 
 fn default_backend() -> String {
-    "llama.cpp".to_string()
-}# changed to llama.cpp now it is working fine
+    "mock".to_string()
+}
+
 async fn load_model(
     State(state): State<Arc<ApiState>>,
     Json(body): Json<LoadModelRequest>,

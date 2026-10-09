@@ -78,7 +78,7 @@ pub struct RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            default_backend: "llama.cpp".to_string(),
+            default_backend: "mock".to_string(),
             idle_unload_minutes: 30,
         }
     }
