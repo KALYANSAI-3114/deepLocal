@@ -462,8 +462,7 @@ pub struct LoadModelRequest {
 
 fn default_backend() -> String {
     "mock".to_string()
-}
-
+}# changed to mock now it is working fine
 async fn load_model(
     State(state): State<Arc<ApiState>>,
     Json(body): Json<LoadModelRequest>,
